@@ -1,0 +1,214 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "findroot.h"
+#include "calculator_fixed.h"
+
+#define MAX_ITER_1 1000   // Maximum number of iterations
+#define EPSILON 1e-8    // Precision
+#define START -10     // Expanded search range
+#define END 10
+#define STEP 0.01    // Reduced step size for higher accuracy
+
+//Secant
+// Nếu có lũy thừa với số mũ không nguyên => yêu cầu x > 0
+int expressionRequiresPositiveDomain(Token *postfix) {
+    int i = 0;
+    while (!(postfix[i].type == OPERATOR && postfix[i].value.operator == 'E')) {
+        if (postfix[i].type == OPERATOR && postfix[i].value.operator == '^') {
+            if (i >= 1 && postfix[i-1].type == OPERAND) {
+                double exp = postfix[i-1].value.operand;
+                if (fabs(exp - round(exp)) > 1e-6) return 1;
+            } else {
+                return 1;
+            }
+        }
+        i++;
+    }
+    return 0;
+}
+
+double secantMethod(Token *postfix) {
+    // Chỉ scan trong khoảng này, không mở rộng thêm
+    double lower = expressionRequiresPositiveDomain(postfix) ? 0.0001 : -20.0;
+    double upper = 20.0;
+    double step  = expressionRequiresPositiveDomain(postfix) ? 0.001  : 0.1;
+
+    double best_x = lower;
+    double best_f = fabs(evaluatePostfix(postfix, lower));
+    double x0=0, x1=0;
+    int found = 0;
+
+    // Quét tìm khoảng đổi dấu
+    for (double x = lower; x <= upper; x += step) {
+        double fx    = evaluatePostfix(postfix, x);
+        double fx2   = evaluatePostfix(postfix, x + step);
+        if (isnan(fx) || isnan(fx2)) continue;
+
+        // ghi nhớ điểm |f| nhỏ nhất
+        if (fabs(fx) < best_f) {
+            best_f = fabs(fx);
+            best_x = x;
+        }
+        // nếu đã đủ gần nghiệm thì trả luôn
+        if (fabs(fx)  < SCAN_TOL) return x;
+        if (fabs(fx2) < SCAN_TOL) return x + step;
+        // tìm khoảng đổi dấu
+        if (fx * fx2 < 0) {
+            x0 = x;
+            x1 = x + step;
+            found = 1;
+            break;
+        }
+    }
+
+    // nếu không tìm được khoảng đổi dấu, trả best_x hoặc NaN
+    if (!found) {
+        if (best_f < SCAN_TOL) return best_x;
+        printf("Khong tim duoc khoang chua nghiem\n");
+        return NAN;
+    }
+
+    // Secant để tinh nghiệm
+    double f0 = evaluatePostfix(postfix, x0);
+    double f1 = evaluatePostfix(postfix, x1);
+    double x2 = x1;
+
+    for (int iter = 0; iter < MAX_ITER; iter++) {
+        if (fabs(f1 - f0) < TOL) break;
+        x2 = x1 - f1 * (x1 - x0) / (f1 - f0);
+        double f2 = evaluatePostfix(postfix, x2);
+        if (fabs(x2 - x1) < TOL || fabs(f2) < TOL)
+            return x2;
+        // cập nhật
+        x0 = x1;  f0 = f1;
+        x1 = x2;  f1 = f2;
+    }
+    return x2;
+}
+
+//Bisection
+// Function to find an interval containing a root
+int findRootInterval(Token *postfix, float *a, float *b) {
+    float prev_x = START;
+    float prev_f = evaluatePostfix(postfix, prev_x);
+
+    for (float x = START + STEP; x <= END; x += STEP) {
+        float f_x = evaluatePostfix(postfix, x);
+         if (fabs(f_x) < EPSILON) {
+            *a = x - STEP;
+            *b = x + STEP;
+            return 1;
+        }  
+       
+       
+
+       if (prev_f * f_x < 0) {  // Sign change indicates a root in [prev_x, x]
+            *a = prev_x;
+            *b = x;
+           
+            return 1;
+        }
+
+        prev_x = x;
+        prev_f = f_x;
+    }
+
+    printf("No root interval found!\n");
+    return 0;  // No root found
+}
+
+
+// Bisection method to find the root
+float bisectionMethod(Token *postfix) {
+    float a, b;
+    if (!findRootInterval(postfix, &a, &b)) {
+        return NAN;
+    }
+
+    float fa = evaluatePostfix(postfix, a);
+    float fb = evaluatePostfix(postfix, b);
+   
+    
+    if (fa * fb > 0) {
+        printf("Error: f(a) and f(b) must have opposite signs!\n");
+        return NAN;
+    }
+
+   
+
+    int iter = 0;
+    float c, fc;
+
+    while ((b - a) > EPSILON && iter < MAX_ITER_1) {
+        c = (a + b) / 2;
+        fc = evaluatePostfix(postfix, c);
+   
+
+        if (fabs(fc) < EPSILON) { 
+            return c;
+        }
+       
+        
+        if (fa * fc < 0) { 
+            b = c;
+            fb = fc;
+        } else { 
+            a = c;
+            fa = fc;
+        }
+
+        iter++;
+    }
+
+    printf("Bisection method stopped at x = %.4f after %d iterations\n", (a + b) / 2, iter);
+    return (a + b) / 2;
+}
+
+//Newton 
+// Tính đạo hàm gần đúng f'(x)
+float derivative(Token *postfix, float x) {
+    if (postfix == NULL) return NAN;
+
+    float h = SCAN_TOL;
+    return (evaluatePostfix(postfix, x + h) - evaluatePostfix(postfix, x - h)) / (2 * h);
+}
+float NewtonRaphsonMethod(Token *postfix) {
+    if (postfix == NULL) {
+        printf("Loi: Khong the phan tich bieu thuc!\n");
+        return NAN;
+    }
+    int positiveDomain = expressionRequiresPositiveDomain(postfix);
+    float x0 = 1;
+    int rep = 0;
+    while (rep < MAX_ITER) {
+        float fx = evaluatePostfix(postfix, x0);
+        if (fabs(fx) < SCAN_TOL) {
+            return x0; 
+        }
+        float dfx = derivative(postfix, x0);
+        int retry = 0;
+        while (fabs(dfx) < SCAN_TOL && retry < 5) {
+            printf("Dao ham gan 0 tai x = %.5f, thu diem khac\n", x0);
+            x0 += 0.1;
+            if (positiveDomain && x0 <= 0) x0 = 0.0001;
+            dfx = derivative(postfix, x0);
+            retry++;
+        }
+        if (fabs(dfx) < SCAN_TOL) {
+            printf("Newton-Raphson that bai: Dao ham qua nho!\n");
+            return NAN;
+        }
+        float x1 = x0 - fx / dfx;
+        if (positiveDomain && x1 <= 0) {
+            x1 = (x0 + 0.0001f) / 2;
+        }
+        if (fabs(x1 - x0) < TOL) {
+            return x1;
+        }
+        x0 = x1;
+        rep++;
+    }
+    printf("Newton-Raphson that bai: Vuot qua so lan lap toi da!\n");
+    return NAN;
+}

@@ -1,0 +1,73 @@
+#include "keypad.h"
+#include <stdio.h>
+#include <string.h>
+#include <wiringPi.h>  // Thư viện GPIO
+
+int rowPins[rows] = {21, 22, 23, 24, 25};
+int colPins[cols] = {26, 27, 28, 29};
+
+char keys[rows][cols] = {
+    {'+', '-', '*', '/'},
+    {'1', '2', '3', 'x'},
+    {'4', '5', '6', '^'},
+    {'7', '8', '9', '.'},
+    {'(', '0', ')', '='}
+};
+
+void init_keypad() {
+    for (int r = 0; r < rows; r++) {
+        pinMode(rowPins[r], INPUT);
+        pullUpDnControl(rowPins[r], PUD_UP);
+    }
+    for (int c = 0; c < cols; c++) {
+        pinMode(colPins[c], OUTPUT);
+        digitalWrite(colPins[c], HIGH);
+    }
+}
+
+char get_key() {
+    for (int c = 0; c < cols; c++) {
+        digitalWrite(colPins[c], LOW);
+        delay(5);
+        for (int r = 0; r < rows; r++) {
+            if (digitalRead(rowPins[r]) == LOW) {
+                delay(50);
+                if (digitalRead(rowPins[r]) == LOW) {
+                    while (digitalRead(rowPins[r]) == LOW); // Đợi nhả phím
+                    digitalWrite(colPins[c], HIGH);
+                    return keys[r][c];
+                }
+            }
+        }
+        digitalWrite(colPins[c], HIGH);
+    }
+    return '\0';
+}
+
+void get_expression(char *str, const char *message) {
+    int index = 0;
+    char key;
+    
+    printf("%s", message);
+    fflush(stdout);  
+
+    while (1) {
+        key = get_key();    
+        if (key != '\0') {
+            if (key == '=') break;
+            if (key == 'C') {
+                index = 0;
+                str[0] = '\0';
+                printf("\n%s", message);  
+            } else {
+                str[index++] = key;
+                str[index] = '\0';
+                printf("%c", key);  
+            }
+            fflush(stdout);
+        }
+        delay(100);
+    }
+    printf("\n");
+    fflush(stdout);
+}
