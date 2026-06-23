@@ -96,15 +96,15 @@ The project highlights the trade-offs between a high-performance single-board co
 
 ---
 ## Team Members
-Ngô Diễm Quỳnh – 2212887
-Nguyễn Trọng Tuấn – 2213794
-Trần Đoàn Minh Huy – 2211280
+- **Ngô Diễm Quỳnh** – 2212887
+- **Nguyễn Trọng Tuấn** – 2213794
+- **Trần Đoàn Minh Huy** – 2211280
 
-Course: Embedded System Design
+Course: **Embedded Systems Programming**
 
 Ho Chi Minh City University of Technology (HCMUT)
 
-Academic Year: 2024
+Academic Year: 2025
 
 ---
 
